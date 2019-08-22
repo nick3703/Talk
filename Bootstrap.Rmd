@@ -1,0 +1,586 @@
+---
+title: "The Bootstrap"
+subtitle: "What it is, What it isn't, What can go horribly, horribly wrong"
+author: Nick Clark
+output: 
+  ioslides_presentation:
+    incremental: true
+    widescreen: true
+---
+
+# What it is
+
+##Hall, P. The Bootstrap and Edgeworth Expansion
+
+![ (DO NOT START WITH THIS TEXT!) ](PHall.png)
+
+## A (somewhat) rigorous definition
+
+- $X_1,\cdots,X_n\sim F$
+
+- $\theta$ is parameter of $F$
+- $\hat{\theta}_n$ is an estimator of $\theta$, $\hat{\theta}_n=t_n(X_1\cdots X_n)$
+- $\theta$ is Level 1 parameter, parameters of $\hat{\theta}_n$ are Level 2 parameters, e.g. $Var(\hat{\theta}_n)$
+- The bootstrap estimates Level 2 parameters
+- $X \sim N(\mu,\sigma)$, $\mu$ is a level 1 parameter
+- $\mbox{bias}(\hat{\mu})=X_{(n/2)}-\mu$, is a level 2 parameter
+- Bootstrap can estimate properties of $\hat{\mu}$, cannot estimate properties of $\mu$
+
+## How it works
+
+- Observe $X_1,\cdots,X_n$ from $F$, say $F \sim Exp(\theta)$ 
+
+- Calculate $\hat{\theta}_n$ from original data
+
+- Construct an estimate of $F$ from data, $\tilde{F}_n$
+
+- Generate IID samples from $\tilde{F}_n$, commonly $X_1^*, \cdots X_n^*$
+
+- Calculate $\theta_n^*$ from bootstrap sample
+
+- If $\tilde{F}_n$ is chosen appropriately then the relationship between $\hat{\theta}_n$ and $\theta$ is accurately mimicked by examining the relationshp between $\theta_n^*$ and $\hat{\theta}$
+
+## Choices for $\tilde{F}_n$ {.build}
+
+ * $\tilde{F}_n(.) \equiv n^{-1} \sum_{i=1}^n \mathbb{I}(X_i \leq .)$ i.e. EDF
+
+```{r}
+x<-rexp(10,4)
+theta<-mean(x)
+x.star<-sample(x,10,replace=T)
+```
+
+ * $\tilde{F}_n(.) \equiv F(\hat{\theta})$  
+
+```{r}
+x<-rexp(10,4)
+theta.hat<-1/mean(x)
+x.star<-rexp(10,theta.hat)
+```
+
+## Mimic relationship between $\theta$ and $\hat{\theta}$ {.build}
+
+ * Say want to estimate $E[\hat{\theta}_n-\theta]$ (Property of $\hat{\theta}$)
+ * Build empirical estimate of $\theta_n^* - \hat{\theta}_n$
+ 
+```{r}
+M<-5000
+emp.bias<-c()
+theta<-4
+for(i in 1:M){
+  x<-rexp(10,theta)
+  theta.hat<-1/mean(x) #MLE for Theta
+  x.star<-sample(x,10,replace=T)
+  theta.star<-1/mean(x.star)
+  emp.bias[i]<-theta.star-theta.hat
+}
+mean(emp.bias)
+```
+
+
+## Aside
+
+- $X_i \sim Exp(\theta)$ implies $\sum_{i=1}^n X_i \sim Gam(n,\theta)$
+
+- $Y \equiv \frac{1}{\sum_{i=1}^n X_i} \sim IG (n,\theta)$
+
+- $E[Y] = \frac{\theta}{n-1}$, so $E\left[\frac{10}{\sum_{i=1}^{10} X_i}\right]=\frac{10}{9} \theta$
+
+- So Bias should be $\frac{4}{9}=.444$ (Certainly not trivial for 206 students)
+
+
+## Probability Bias is less than .75
+
+```{r} 
+M<-5000
+emp.bias<-c()
+for(i in 1:M){
+  x<-rexp(10,4)
+  theta.hat<-1/mean(x)
+  x.star<-sample(x,10,replace=T)
+  theta.star<-1/mean(x.star)
+  emp.bias[i]<-theta.star-theta.hat
+}
+
+length(emp.bias[abs(emp.bias)]<.75)/M
+```
+
+## Could also do
+
+Parametric bootstrap, $\tilde{F}_n(.) \equiv F(\hat{\theta})$  
+
+```{r}
+M<-5000
+emp.bias2<-c()
+for(i in 1:M){
+  x<-rexp(10,theta)
+  theta.hat<-1/mean(x)
+  x.star<-rexp(x,theta.hat) #F is now parametric
+  theta.star2<-1/mean(x.star)
+  emp.bias2[i]<-theta.star2-theta.hat
+}
+mean(emp.bias2)
+```
+
+Makes distributional assumptions
+
+
+##Why does this work?
+
+- Let $T_n$ be normalized sample mean, $T_n \equiv n^{1/2}\left(\bar{X}-\mu\right)/ \sigma$ and $\tilde{F}_n$ be empirical distribution
+
+- $T^*_n = n^{1/2}\left(\bar{X}^*_n - E_* X^* \right)/Var_* (X^*)^{1/2}$
+
+- As we are using empirical distribution $E_* (X^*)^k = n^{-1}\sum_{i=1}^n X_i^k$
+
+- Thus, $T^*_n =n^{1/2} \left(\bar{X}^*_n -\bar{X}_n\right)/s_n$
+
+## Berry-Esseen Theorem {.build}
+
+ * Let $X_1,\cdots,X_n$ be a collection of independent random variables with $E X_j =0$ and $E|X_j|^3 < \infty$.  If $\sigma_n^2 >0$, then
+$$
+\sup_{x \in \mathbb{R}} | P(\frac{1}{\sqrt{n}\sigma_n}\sum_{j=1}^n X_j \leq x) - \Phi (x)|\\ \leq 2.75 \frac{1}{n^{3/2}}\sum_{j=1}^n E|X_j|^3/\sigma_n^3
+$$
+ *  A mouthful but a remarkable result
+
+##How this relates to bootstrap
+
+Recall $T^*_n =n^{1/2} \left(\bar{X}^*_n -\bar{X}_n\right)/s_n$ is bootstrap statistic
+
+Berry-Essen Gives
+$$
+\sup_{x \in \mathbb{R}} | P(T^*_n\leq x) - \Phi (x)|\\ \leq 2.75 \frac{1}{s_n^3 \sqrt{n}} E_* |X_1^* - \bar{X}_n|^3 \\
+= 2.75 \frac{1}{s_n^3 n^{3/2}}\sum_{i=1}^n |X_i-\bar{X}_n|^3
+$$
+
+By a version of SLLN $\frac{1}{n^{3/2}}\sum_{i=1}^n |X_i-\bar{X}_n|^3 \to 0$ meaning $\sup_{x \in \mathbb{R}} | P(T^*_n\leq x) - \Phi (x)| \to 0$
+
+##Cont.
+- Intuitively, $X \sim F$ with $E|X|^2 < \infty$ we have CLT, EDF is a distribution, hence EDF has CLT
+
+- $T^*_n \to N(0,1)$, $T_n \to N(0,1)$, therefore, $T^*_n \to T_n$ 
+
+- Can be shown to converge at $o(n^{-1/2})$ whereas the classical normal approximation converges at $O(n^{-1/2})$ 
+
+##Bootstrap Confidence Intervals{.build}
+
+ * Key point of bootstrap, you have to bootstrap something with a limiting distribution, e.g. $n^{1/2}(\hat{\theta}-\theta) \to N(0,\sigma^2_{\theta})$
+
+```{r}
+x<-rnorm(3000);mu.hat<-mean(x);bs.star<-c()
+for(l in 1:3000){
+  x.star<-sample(x,length(x),replace=T)
+  mu.star<-mean(x.star)
+  bs.star[l]<-(mu.star-mu.hat)*sqrt(length(x))}
+mean(bs.star)
+var(bs.star)
+```
+
+##Bootstrap Confidence Intervals{.build}
+
+ * However, if $E[X^2]=\infty$, then makes no sense to bootstrap $n^{1/2}(\hat{\theta}-\theta)$
+
+```{r}
+x<-rcauchy(3000);mu.hat<-mean(x);bs.star<-c()
+for(l in 1:3000){
+  x.star<-sample(x,length(x),replace=T)
+  mu.star<-mean(x.star)
+  bs.star[l]<-(mu.star-mu.hat)*sqrt(length(x))
+}
+mean(bs.star)
+var(bs.star)
+```
+
+##Bootstrap Confidence Intervals
+
+- Bootstrapping something of the form $n^{1/2}(\hat{\theta}_n-\theta)$
+- $Pr(\theta < L_{\alpha}) = \alpha/2$ and $P(\theta < U_\alpha)=1-\alpha/2$
+- $$ Pr(n^{1/2}(\hat{\theta}_n-\theta) > n^{1/2}(\hat{\theta}_n-L_{\alpha}))=\alpha/2$$
+
+- $n^{1/2}(\hat{\theta}_n-L_{\alpha}))$ is the $1-\alpha/2$ quantile of $n^{1/2}(\hat{\theta}_n-\theta)$
+
+- $$L_{\alpha} \approx \hat{\theta}_n-(\theta^*-\hat{\theta}_n)_{[(M+1)(1-\alpha/2)]}\\
+=2 \hat{\theta}_n - \theta^*_{[(M+1)(1-\alpha/2)]}$$
+
+- Similarly $U_{\alpha} \approx 2\hat{\theta}_n - \theta^*_{[(M+1)(\alpha/2)]}$
+
+##Percentile Bootstrap Interval
+
+- Regardless of comparison function (as long as it has limiting distribution) may be able to use $$\left(\theta^*_{[(M+1)(\alpha/2)]},\theta^*_{[(M+1)(1-\alpha/2)]}\right)$$
+
+- In practice does it matter?
+
+##Neither Sometimes Work Well...
+```{r}
+perc.count<-0;basic.count<-0;true.mean<-.5
+for(k in 1:200){
+  x<-rgamma(10,2,4)
+  theta.star<-c()
+  for(l in 1:3000){
+    x.star<-sample(x,length(x),replace=TRUE)
+    theta.star[l]<-mean(x.star)
+  }
+  perc.lb<-sort(theta.star)[.025*length(theta.star)]
+  perc.ub<-sort(theta.star)[.975*length(theta.star)]
+  basic.lb<-2*mean(x)-perc.ub
+  basic.ub<-2*mean(x)-perc.lb
+  if(perc.lb<true.mean&perc.ub>true.mean){perc.count<-perc.count+1}
+  if(basic.lb<true.mean&basic.ub>true.mean){basic.count<-basic.count+1}
+}
+print(c(perc.count/200, basic.count/200))
+```
+
+##That Pesky Third Moment
+
+
+```{r, cars, fig.cap="Issue in tails.", echo=FALSE}
+n<-10;t.stat<-c()
+for(k in 1:10000){
+  x<-rgamma(n,2,4)
+  t.stat[k]<-n^(1/2)*((mean(x)-.5)/sqrt(.125))
+}
+plot(density(t.stat))
+lines(density(rnorm(10000)),col="blue")
+```
+
+##Some other bootstrap confidence intervals {.build}
+
+ * Bootstrap t interval, $\hat{\theta}\pm t_{\alpha/2,n-1}\mbox{SE}_b$ (Not any better than using t-distribution)
+
+ * Expanded percentile interval:  if normal than $F^{*-1}(\alpha/2)\approx \hat{\theta}+z_{\alpha/2}\hat{\sigma}/\sqrt{n}$
+ 
+ * Want to use quantiles that correspond to $t_{\alpha/2} s/ \sqrt{n}$
+ 
+ $$F^{*-1}(\alpha'/2) \approx \hat{\theta}+z_{\alpha'/2}\hat{\sigma}/\sqrt{n} \\
+ \approx \hat{\theta}+t_{\alpha/2}s/\sqrt{n}$$
+ 
+ * So $z_{\alpha'/2} = \sqrt{n/(n-1)}t_{\alpha/2}$ which implies $\alpha'/2 = \phi(\sqrt{n/(n-1)}t_{\alpha/2})$
+ 
+##Expanded percentile interval in practice
+
+```{r}
+adj.count<-0;true.mean<-.5;perc.count<-0
+for(k in 1:200){
+  x<-rgamma(10,2,4);theta.star<-c(); n<-length(x)
+  for(l in 1:3000){
+    x.star<-sample(x,length(x),replace=TRUE);theta.star[l]<-mean(x.star)
+  }
+  quant<-pnorm(sqrt(n/(n-1))*qt(.025,n-1))
+  exp.lb<-sort(theta.star)[quant*length(theta.star)]
+  exp.ub<-sort(theta.star)[(1-quant)*length(theta.star)];length<-exp.ub-exp.lb
+  if(exp.lb<true.mean&exp.ub>true.mean){perc.count<-perc.count+1}
+}
+print(c(perc.count/200))
+```
+
+##Bootstrap t-distribution
+
+- Use Empirical distribution of $\frac{\hat{\theta}^*-\hat{\theta}}{\hat{S}^*}$ to estimate the distribution of $\frac{\hat{\theta}-\theta}{\hat{S}}$
+
+- Preserves skewness of $t$ statistic
+
+- Pedagogical tool as builds up distribution of $t$ statistic as opposed to assuming it is known
+
+##Bootstrap t-distribution
+```{r}
+t.stat<-0;true.mean<-.5;t.count<-0
+for(k in 1:200){
+  x<-rgamma(10,2,4);theta.star<-c()
+  for(l in 1:3000){
+    x.star<-sample(x,length(x),replace=TRUE);
+    theta.star[l]<-mean(x.star)
+    t.stat[l]<-(theta.star[l]-mean(x))/(sd(x.star)/sqrt(10)*sqrt(9/10))
+  }
+  t.lb<-sort(t.stat)[.025*length(t.stat)]
+  t.ub<-sort(t.stat)[.975*length(t.stat)]
+  lb<-mean(x)-t.ub*sd(x)/sqrt(length(x))
+  ub<-mean(x)-t.lb*sd(x)/sqrt(length(x))
+  if(lb<true.mean&ub>true.mean){t.count<-t.count+1}
+}
+print(c(t.count/200))
+```
+
+##Bias Corrected Accelerated Bootstrap
+
+- Percentile CI might be biased, so first compute bias correction factor $\hat{z}_0 = \Phi^{-1}(\mathbb{I}\left(\hat{\theta^*}<\hat{\theta}\right)/B)$
+
+- Can think of this as the median bias of $\hat{\theta^*}$
+
+- Biasness also manifests in higher order Edgeworth terms
+
+##Acceleration computation
+
+$$P(t \leq x) = \Phi (x) + \sum_{i=1}^k n^{-i/2}P_i(x) \phi(x) + o(n^{-k/2})$$
+
+- So can explicitely correct for higher order terms
+- Next term in particular is $P_1(x) = \frac{1}{6} E(X-\mu)^3 Var(X)^{-3/2} (2x^2+1)$
+- Estimate 'acceleration' by estimating $A=\frac{1}{6} E(X-\mu)^3 Var(X)^{-3/2}$
+
+- Jacknife estimate traditionally employed to find $\hat{A}$
+
+
+##BCa
+
+```{r,warning=FALSE}
+library(resample)
+t.stat<-0;true.mean<-.5;t.count<-0
+for(k in 1:200){
+  x<-rgamma(10,2,4);theta.star<-c()
+  bs.samp<-resample::bootstrap(x,mean,R=2000)
+  bca.ci<-CI.bca(bs.samp)
+  bca.lb<-bca.ci[1]
+  bca.ub<-bca.ci[2]
+  if(bca.lb<true.mean&bca.ub>true.mean){t.count<-t.count+1}
+}
+print(c(t.count/200))
+```
+
+
+#What the bootstrap isn't
+
+##Is not a panacea for small data
+```{r}
+perc.count<-0;basic.count<-0;true.mean<-.5
+for(k in 1:500){
+  x<-rgamma(100,2,4)
+  theta.star<-c()
+  for(l in 1:3000){
+    x.star<-sample(x,length(x),replace=TRUE)
+    theta.star[l]<-mean(x.star)
+  }
+  perc.lb<-sort(theta.star)[.025*length(theta.star)]
+  perc.ub<-sort(theta.star)[.975*length(theta.star)]
+  basic.lb<-2*mean(x)-perc.ub
+  basic.ub<-2*mean(x)-perc.lb
+  if(perc.lb<true.mean&perc.ub>true.mean){perc.count<-perc.count+1}
+  if(basic.lb<true.mean&basic.ub>true.mean){basic.count<-basic.count+1}
+}
+print(c(perc.count/500, basic.count/500))
+```
+##Is not a panacea for small data
+- Proof that it works relies on $n \to \infty$
+
+- Confusion in different $n$ terms
+
+- Original, observed data, $X_1,\cdots, X_n$ - This is set by nature or data limitations
+
+- Bootstrap sample is of same size as data, $X^*_1,\cdots, X^*_n$, again, not chosen by user
+
+- Number of bootstrap samples, $\theta^*_1,\cdots,\theta^*_m$ is chosen by user, is irrelevant for proof of whether bootstrap works or not
+
+- The larger $m$ is, the closer the empirical distribution of, say, $n^{1/2}(\theta^*-\hat{\theta})$ is to the true distribution of $n^{1/2}(\theta^*-\hat{\theta})$ 
+
+
+##Bootstrap is not an excuse to not learn theory
+
+- Need to know there is a limiting distribution for $n^{1/2}(\hat{\theta}-\theta)$, if there isn't, makes no sense to bootstrap it
+
+- Fortunately have MLE theory, so in broad setting we are good $n^{1/2}(\hat{\theta}_{mle}-\theta) \to N(0,\sigma_{\hat{\theta}})$ 
+
+- Biased corrected accelerated relies on Edgeworth expansion theory
+
+##The bootstrap tells us nothing new about the population parameter, $\theta$ {.build}
+
+ * The bootstrap gives no new information about $\theta$, it only tells us things about the distribution of functionals of $\hat{\theta}$
+
+ * It may indirectly tell us something about $\theta$, say by forming confidence intervals for $\theta$, however if our method for estimating $\hat{\theta}$ is bad, then we are not saved.
+
+```{r}
+data<-rnorm(100);mu.hat<-sort(data)[length(data)*.60]
+for(l in 1:5000){
+  dat.star<-sample(data,length(data),replace=TRUE)
+  mu.star[l]<-sort(dat.star)[length(dat.star)*.60]}
+c(sort(mu.star)[.025*length(mu.star)],sort(mu.star)[.975*length(mu.star)])
+```
+
+#What can go horribly, horribly wrong
+
+##Consider the following
+
+- $Y_t = 3+ \epsilon_t+.5\epsilon_{t-1}$ and $\epsilon_t \sim N(0,1)$
+
+- Can be shown $Var(\sqrt{n}\bar{Y}_n)=\sum_{k=-n}^n \left(1-\frac{|k|}{n}\right)r(k)$ where $r(k)=Cov(Y_t,Y_{t+k})$
+
+- In this case $Cov(Y_t,Y_t)= 1.25$, $Cov(Y_t,Y_{t-1})= .5$, $Cov(Y_t,Y_{t+1})= .5$, so for, say, $n=10$, $Var(\sqrt{n}\bar{Y}_n)=2.15$
+
+##Cont.
+```{r}
+epsilons<-rnorm(10)
+y.t<-c()
+y.t[1]=3+epsilons[1]
+for(j in 2:10){
+  y.t[j]=3+epsilons[j]+.5*epsilons[j-1]
+}
+theta.star<-c()
+for(k in 1:5000){
+  y.star<-sample(y.t,length(y.t),replace=TRUE)
+  n<-length(y.star)
+  theta.star[k]<-sqrt(n)*(mean(y.star)-mean(y.t))
+}
+var(theta.star)
+```
+##Maybe $n$ isn't big enough? {.build}
+ * In this case $Cov(Y_t,Y_t)= 1.25$, $Cov(Y_t,Y_{t-1})= .5$, $Cov(Y_t,Y_{t+1})= .5$, so for, say, $n=100$, $Var(\sqrt{n}\bar{Y}_n)=2.24$
+```{r}
+epsilons<-rnorm(100);y.t<-c()
+y.t[1]=3+epsilons[1]
+for(j in 2:100){
+  y.t[j]=3+epsilons[j]+.5*epsilons[j-1]
+}
+theta.star<-c()
+for(k in 1:5000){
+  y.star<-sample(y.t,length(y.t),replace=TRUE);n<-length(y.star)
+  theta.star[k]<-sqrt(n)*(mean(y.star)-mean(y.t))
+}
+var(theta.star)
+```
+
+##Even Worse {.build}
+
+ * $Y_t = 3+.5 Y_{t-1}+\epsilon_t$, $\epsilon \sim N(0,1)$
+ * $Cov(Y_t,Y_{t \pm k})=\frac{1}{1-.5^2} .5^k$
+ * So, if $n=10$ we have $Var(n^{1/2}\bar{X})=3.47$
+ 
+##In case you don't believe me...
+
+```{r}
+y.bar<-c()
+for(k in 1:1000){
+  epsilons<-rnorm(100)
+  y.t<-c()
+  y.t[1]<-3+epsilons[1]
+  for(j in 2:100){
+    y.t[j]<-3+.5*y.t[j-1]+epsilons[j]
+  }
+  y.bar[k]<-mean(y.t[81:90])
+}
+var(sqrt(10)*y.bar)
+```
+
+##Let's Bootstrap
+
+```{r}
+
+y.t.partial<-y.t[81:90];theta.star<-c()
+for(k in 1:5000){
+  y.star<-sample(y.t.partial,length(y.t.partial),replace=TRUE)
+  n<-length(y.star)
+  theta.star[k]<-sqrt(n)*(mean(y.star)-mean(y.t.partial))
+}
+var(theta.star)
+```
+
+- The worst sin a statistician can commit...
+
+##Not saved by asymptotics, $n=90$
+
+```{r}
+y.bar<-c();theta.star<-c()
+for(k in 1:1000){
+  epsilons<-rnorm(100)
+  y.t<-c()
+  y.t[1]<-3+epsilons[1]
+  for(j in 2:100){
+    y.t[j]<-3+.5*y.t[j-1]+epsilons[j]
+  }
+  y.bar[k]<-mean(y.t[11:100])
+}
+var(sqrt(90)*y.bar)
+```
+
+##Not saved by asymptotics
+
+```{r}
+
+y.t.partial<-y.t[11:100];theta.star<-c()
+for(k in 1:5000){
+  y.star<-sample(y.t.partial,length(y.t.partial),replace=TRUE)
+  n<-length(y.star)
+  theta.star[k]<-sqrt(n)*(mean(y.star)-mean(y.t.partial))
+}
+var(theta.star)
+```
+
+
+##IID Innovation Bootstrap
+
+- $Y_t = h(Y_{t-1},\cdots,Y_{t-p};\beta)+\epsilon_t$ with $\epsilon_t \sim \mbox{ iid }F$, $t>p$
+
+- Get residuals, $\hat{\epsilon}_t=Y_t-h(Y_{t-1},\cdots,Y_{t-p};\hat{\beta})$ for $t=p+1,\cdots,n$
+
+- Center residuals and put in collection $C={\epsilon_t-\bar{\hat{\epsilon}}:t=p+1,\cdots,n}$
+
+- Draw $\epsilon_t^*,t=p+1,\cdots,n$ by sampling with replacement from $C$
+
+- Bootstrap time series is $X_t^* = h(X_{t-1}^*,\cdots,X_{t-p}^*;\hat{\beta})+\epsilon_t^*$, for $t=p+1,\cdots,n$
+
+##IID Innovation Bootstrap
+
+
+```{r}
+y.t.partial<-y.t[11:100]
+y.t.last<-y.t[10:99]
+ls.mod<-lm(y.t.partial~y.t.last);coefs<-ls.mod$coefficients
+resids<-y.t.partial[-1]-(coefs[1]+coefs[2]*y.t.partial[-length(y.t.partial)])
+cent.resids<-resids-mean(resids);theta.star<-c()
+for(k in 1:5000){
+  eps.star<-sample(cent.resids,length(cent.resids),replace=TRUE)
+  y.star<-c();y.star[1]=y.t.partial[1]
+  for(l in 2:90){
+    y.star[l]<-coefs[1]+coefs[2]*y.star[l-1]+eps.star[l-1]
+  }
+  n<-length(y.star)
+  theta.star[k]<-sqrt(n)*(mean(y.star)-mean(y.t.partial))
+}
+var(theta.star)
+```
+
+##Block Bootstrap
+
+- MBB: Let $B_i=(X_i,\cdots,X_{i+l-1})$ be block of length $l$ starting with $X_i$
+
+- Resample blocks with replacement from collection of $\{B_1,\cdots,B_M\}$
+
+- Concate into a single vector, use this as the bootstrap sample
+
+- Also Non-Overlapping block bootstrap, Circular block bootstrap, Sieve bootstrap
+
+- How do you pick block size?
+
+##Block Bootstrap
+
+```{r}
+n<-length(y.t.partial);block.t<-c();block.mat<-matrix(0,nrow=30,ncol=3)
+for(j in 1:nrow(block.mat)){
+  block.mat[j,]<-y.t.partial[(0+j):(2+j)]
+}
+block.t<-c()
+M<-2000
+for(k in 1:M){
+  indexes<-sample(nrow(block.mat),nrow(block.mat),replace=T)
+  block.boot<-block.mat[indexes,]
+  block.t[k]<-sqrt(n)*(mean(block.boot)-mean(y.t.partial))
+}
+var(block.t)
+```
+
+##Key Points
+
+- Bootstrap allows us to estimate Level 2 parameters, properties of, say, $n^{1/2}(\hat{\theta}-\theta)$
+
+- Does not allow us to better estimate $\theta$ or tell us how to estimate $\theta$
+
+- Percentile bootstrap, though easiest to explain to students, is not the only method (nor is in the best) and it rarely beats the normal approximation (though theoretically it's better)
+
+- Your bootstrap sample must be the same size as your original data
+
+- The bootstrap is centered at the observed estimate, not at the population estimate, $n^{1/2}(\theta^*-\hat{\theta})$ NOT $n^{1/2}(\theta^*-\theta)$
+
+
+##Resources
+
+- What Teachers Should Know about the Bootstrap: Resampling in the Undergraduate Statistics Curriculum, Hesterberg
+
+- Resampling Methods for Dependent Data, Lahiri
+
+- The Bootstrap and Edgeworth Expansion, Hall
